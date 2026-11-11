@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="hr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Jadran radar – karta mora za nautičare i kupače</title>
+<meta name="description" content="Jadran radar: gdje ne sidriti, koja su sidrišta zaklonjena od vjetra i kakvo je more na plažama srednjeg Jadrana. Izrađeno na otvorenim podacima Republike Hrvatske.">
+<meta name="theme-color" content="#0a2540">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%230f3a5a' stroke='%23ffc857' stroke-width='2'/%3E%3Cpath d='M20 20V2a18 18 0 0 1 15.6 9z' fill='%235fd0e0' fill-opacity='.45'/%3E%3Cpath d='M4 26q4-4 8 0t8 0 8 0 8 0' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--navy:#0a2540;--navy2:#123a5c;--sea:#1d6fa5;--foam:#eef4f7;--line:#d5e0e8;--ink:#0d2233;--mute:#5a7184;--brass:#ffc857;
+ --g:#2e9e6b;--y:#e0a21b;--r:#cf4437;--b:#2b6cb0;--radius:12px;--shadow:0 4px 18px rgba(10,37,64,.22)}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--navy)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+
+/* Zaglavlje */
+.top{background:linear-gradient(180deg,var(--navy),var(--navy2));color:#fff;display:flex;align-items:center;gap:14px;padding:8px 14px;padding-top:max(8px,env(safe-area-inset-top))}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand svg{flex:none}
+.brand h1{font-size:19px;line-height:1.1;margin:0;letter-spacing:.2px;white-space:nowrap}
+.brand p{margin:1px 0 0;font-size:12px;color:#b9d2e3;white-space:nowrap}
+.seg{display:flex;background:#ffffff1a;border-radius:999px;padding:3px;flex:none}
+.seg button{background:transparent;color:#dbe9f3;border:0;border-radius:999px;padding:6px 14px;font-weight:600;display:flex;align-items:center;gap:6px}
+.seg button.on{background:#fff;color:var(--navy);box-shadow:0 1px 3px #0003}
+.sp{flex:1}
+.ghost{background:transparent;color:#fff;border:1px solid #ffffff55;border-radius:999px;padding:6px 13px;font-size:13.5px;white-space:nowrap}
+.ghost:hover{background:#ffffff1a}
+
+/* Traka s vremenom */
+.bar{background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;padding:7px 14px;flex-wrap:wrap}
+.time{display:flex;align-items:center;gap:10px;flex:1 1 300px;min-width:0}
+.time span{font-size:13px;color:var(--mute);white-space:nowrap}
+.time b{font-size:13.5px;min-width:150px;white-space:nowrap}
+.time input{flex:1;min-width:90px;accent-color:var(--sea);height:22px}
+.act{position:absolute;z-index:450;left:12px;top:12px;background:var(--brass);color:var(--navy);border:0;border-radius:999px;padding:10px 18px;font-weight:700;box-shadow:var(--shadow);white-space:nowrap}
+.act:hover{filter:brightness(1.05)}
+#info{font-size:12.5px;color:var(--mute);white-space:nowrap}
+#info::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--g);margin-right:6px}
+#info.bad::before{background:var(--r)}
+
+/* Karta i panel */
+.stage{position:relative;flex:1;min-height:0}
+#m{position:absolute;inset:0;background:#aad3df}
+.panel{position:absolute;z-index:500;top:12px;right:12px;width:288px;max-height:calc(100% - 24px);overflow:auto;background:#fff;border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px}
+.panel[hidden]{display:none}
+.panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--mute);margin:10px 0 4px}
+.panel h2:first-child{margin-top:0}
+.lay{display:grid;grid-template-columns:22px 1fr auto;column-gap:6px;align-items:center;padding:5px 0;cursor:pointer}
+.lay input{width:17px;height:17px;margin:0;accent-color:var(--sea)}
+.lay .n{font-weight:600;font-size:14px}
+.lay .c{font-size:11.5px;color:var(--mute);font-variant-numeric:tabular-nums}
+.lay .sub{grid-column:2/4;font-size:12px;color:var(--mute);line-height:1.6}
+.lay .sub span{white-space:nowrap;margin-right:7px}
+.dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1.5px solid #fff;box-shadow:0 0 0 1px #0002}
+.ring{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:4px;vertical-align:-2px;border:2.5px solid #7a4fb5}
+.ln{display:inline-block;width:20px;border-top:3px dashed var(--r);margin-right:5px;vertical-align:3px}
+.demo{display:inline-block;background:var(--navy);color:var(--brass);border-radius:4px;padding:0 5px;font-size:10.5px;font-weight:700;letter-spacing:.5px;vertical-align:1px}
+.ptog{position:absolute;z-index:501;top:12px;right:12px;background:#fff;border:0;border-radius:999px;padding:8px 14px;font-weight:600;box-shadow:var(--shadow);color:var(--navy);display:none}
+.panel .x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:22px;line-height:1;color:var(--mute);padding:4px 6px}
+
+.warn{background:#b3261e;color:#fff;border:0;width:100%;text-align:left;padding:7px 14px;font-size:13.5px;font-weight:600;display:flex;gap:6px 18px;flex-wrap:wrap}
+.warn[hidden]{display:none}.warn span{white-space:nowrap}.warn u{text-decoration-thickness:1px;text-underline-offset:2px;cursor:pointer}
+.sst span{display:block;width:46px;text-align:center;color:#fff;font:700 12px/20px system-ui,sans-serif;border-radius:10px;border:1.5px solid #fff;box-shadow:0 1px 3px #0005;opacity:.92}
+.arr{pointer-events:none}.arr svg{display:block;filter:drop-shadow(0 0 2px #fff) drop-shadow(0 0 1px #fff)}
+.arr b{position:absolute;left:30px;top:6px;font:700 11.5px system-ui,sans-serif;color:#0a2540;white-space:nowrap;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff}
+.mpl{pointer-events:none;white-space:nowrap;transform:translate(-50%,-50%);font:italic 600 11px system-ui,sans-serif;letter-spacing:1.2px;color:#1d4f7a;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 4px #fff}
+.mpl.s{font-size:10px;letter-spacing:.6px;font-weight:500}
+.grad{display:inline-block;width:120px;height:9px;border-radius:5px;vertical-align:0;margin:0 5px;background:linear-gradient(90deg,hsl(240 75% 45%),hsl(180 75% 45%),hsl(120 75% 45%),hsl(60 75% 45%),hsl(0 75% 45%))}
+.sq{display:inline-block;width:11px;height:11px;margin-right:4px;vertical-align:-1px;border:2px solid #1b3a4b;border-radius:2px}
+.vz{display:inline-block;width:18px;height:11px;margin-right:5px;vertical-align:-1px;border:2px dashed #0e7c86;background:#0e7c8618}
+
+/* Popupovi */
+.leaflet-popup-content-wrapper{border-radius:var(--radius);box-shadow:var(--shadow)}
+.leaflet-popup-content{margin:13px 16px 12px;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);min-width:215px}
+.pop h3{font-size:16px;margin:0 22px 1px 0;line-height:1.25}
+.pop .where{font-size:12.5px;color:var(--mute);margin-bottom:6px}
+.pop .box{background:var(--foam);border-radius:8px;padding:7px 9px;margin:6px 0}
+.pop .box small{color:var(--mute)}
+.pop dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin:6px 0;font-size:13px}
+.pop dt{color:var(--mute)}.pop dd{margin:0}
+.pop .src{display:block;margin-top:8px;border-top:1px solid var(--line);padding-top:6px;font-size:11.5px;color:var(--mute)}
+.tag{display:inline-block;color:#fff;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}
+.leaflet-container a.leaflet-popup-close-button{top:6px;right:6px;font-size:22px}
+
+/* Dijalozi */
+dialog{border:0;border-radius:16px;padding:0;box-shadow:0 20px 60px #0007;color:var(--ink);max-width:min(92vw,560px);width:100%}
+dialog::backdrop{background:rgba(6,24,43,.62)}
+.dlg{padding:22px 24px}
+.dlg h2{margin:0 0 8px;font-size:22px}
+.dlg p{margin:0 0 10px}
+.hero{background:linear-gradient(160deg,var(--navy),var(--sea));color:#fff;padding:26px 24px 20px;display:flex;gap:14px;align-items:center}
+.hero h2{margin:0;font-size:26px}.hero p{margin:2px 0 0;color:#cfe3f1}
+.note{font-size:13px;color:var(--mute);background:var(--foam);border-radius:8px;padding:8px 10px}
+.go{display:block;width:100%;margin-top:14px;background:var(--brass);color:var(--navy);border:0;border-radius:999px;padding:12px;font-size:16px;font-weight:700}
+#srcDlg{max-width:min(94vw,720px)}
+#srcDlg .dlg{max-height:86vh;overflow:auto}
+.ds{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0}
+.ds b{font-size:15px}.ds small{color:var(--mute);display:block}
+.ds a{color:var(--sea);font-weight:600}
+.close{float:right;border:0;background:var(--foam);border-radius:999px;width:34px;height:34px;font-size:20px;line-height:1;color:var(--navy)}
+details summary{cursor:pointer;font-weight:600;margin:8px 0}
+details li{margin:3px 0;font-size:13.5px}
+
+/* Mobitel */
+@media (max-width:760px){
+ .brand p,.ghost .lbl{display:none}
+ .top{gap:8px;padding-left:10px;padding-right:10px;flex-wrap:wrap}
+ .brand h1{font-size:18px}
+ .seg{order:5;flex:1 0 100%}
+ .seg button{flex:1;justify-content:center;padding:7px 10px}
+ .ghost{padding:6px 10px}
+ .bar{padding:6px 10px;gap:8px}
+ .time{flex-basis:100%}
+ .time b{min-width:0}
+ #info{display:none}
+ .act{left:50%;top:auto;transform:translateX(-50%);bottom:max(30px,env(safe-area-inset-bottom));padding:11px 18px}
+ .stage{position:relative}
+ .ptog{display:block}
+ .panel{top:auto;right:0;left:0;bottom:0;width:auto;max-height:62%;border-radius:16px 16px 0 0;padding-bottom:max(14px,env(safe-area-inset-bottom))}
+ .leaflet-popup-content{min-width:190px}
+}
+@media (min-width:761px){.panel .x{display:none}}
+</style></head><body>
+
+<header class="top">
+ <div class="brand">
+  <svg viewBox="0 0 40 40" width="36" height="36" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#0f3a5a" stroke="#ffc857" stroke-width="2"/><circle cx="20" cy="20" r="11.5" fill="none" stroke="#5fd0e0" stroke-opacity=".45"/><circle cx="20" cy="20" r="5.5" fill="none" stroke="#5fd0e0" stroke-opacity=".45"/><path d="M20 20V2a18 18 0 0 1 15.6 9z" fill="#5fd0e0" fill-opacity=".4"/><circle cx="27" cy="12.5" r="2" fill="#ffc857"/><path d="M4 26q4-4 8 0t8 0 8 0 8 0" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/></svg>
+  <div><h1>Jadran radar</h1><p>More na otvorenim podacima</p></div>
+ </div>
+ <div class="seg" role="group" aria-label="Način rada">
+  <button id="bN" class="on" aria-pressed="true">⚓ Nautičar</button><button id="bK" aria-pressed="false">🏖 Kupač</button>
+ </div>
+ <div class="sp"></div>
+ <button class="ghost" id="bSrc" aria-label="Izvori podataka">📚<span class="lbl"> Izvori podataka</span></button>
+ <button class="ghost" id="bAbout" aria-label="O projektu">?<span class="lbl"> O projektu</span></button>
+</header>
+
+<div class="bar">
+ <label class="time"><span>Prognoza za</span><input id="sl" type="range" min="0" max="47" value="0" aria-label="Sati unaprijed"><b id="hl">sada</b></label>
+ <div id="info">Učitavam prognozu…</div>
+</div>
+
+<button class="warn" id="warn" hidden></button>
+
+<div class="stage">
+ <div id="m"></div>
+ <button class="ptog" id="bPanel">☰ Slojevi i legenda</button>
+ <aside class="panel" id="panel" aria-label="Slojevi i legenda"><button class="x" id="bPanelX" aria-label="Zatvori">×</button><div id="tg"></div></aside>
+ <button id="bS" class="act">⚓ Najbliže sigurno sidrište</button>
+</div>
+
+<dialog id="intro" aria-labelledby="introT">
+ <div class="hero">
+  <svg viewBox="0 0 40 40" width="58" height="58" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#0f3a5a" stroke="#ffc857" stroke-width="2"/><circle cx="20" cy="20" r="11.5" fill="none" stroke="#5fd0e0" stroke-opacity=".45"/><path d="M20 20V2a18 18 0 0 1 15.6 9z" fill="#5fd0e0" fill-opacity=".4"/><circle cx="27" cy="12.5" r="2" fill="#ffc857"/><path d="M4 26q4-4 8 0t8 0 8 0 8 0" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/></svg>
+  <div><h2 id="introT">Jadran radar</h2><p>Karta mora za nautičare i kupače</p></div>
+ </div>
+ <div class="dlg">
+  <p>Jadran radar na jednoj karti spaja otvorene podatke Republike Hrvatske o moru srednjeg Jadrana s prognozom vjetra i valova za idućih 48 sati.</p>
+  <p><b>Nautičar</b> vidi gdje se ne smije sidriti i koja su sidrišta zaklonjena od vjetra, a <b>kupač</b> kakvoću, temperaturu i valove mora na plaži.</p>
+  <p class="note">Sidrišta su zasad <span class="demo">DEMO</span> primjer s približnim lokacijama. Karta je informativna i ne zamjenjuje službene pomorske karte ni vremenska upozorenja.</p>
+  <button class="go" id="bGo">Kreni</button>
+ </div>
+</dialog>
+
+<dialog id="srcDlg" aria-labelledby="srcT">
+ <div class="dlg"><button class="close" id="bSrcX" aria-label="Zatvori">×</button>
+  <h2 id="srcT">Izvori podataka</h2>
+  <p>Slojevi na karti su otvoreni podaci javnih tijela Republike Hrvatske i Europske agencije za okoliš. Uz svaki je naveden izvor, datum preuzimanja i licenca.</p>
+  <div id="srcList"></div>
+  <h3>Podaci uživo</h3>
+  <div class="ds"><b>Prognoza vjetra, valova, temperature mora i zraka te UV indeksa</b><small>Open-Meteo (Forecast i Marine API) · licenca CC BY 4.0 · dohvaća se pri otvaranju karte</small><a href="https://open-meteo.com/" target="_blank" rel="noopener">open-meteo.com</a></div>
+  <div class="ds"><b>Podloga karte i pomorske oznake</b><small>© suradnici OpenStreetMapa (ODbL) · © OpenSeaMap (CC BY-SA)</small><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">openstreetmap.org</a> · <a href="https://www.openseamap.org/" target="_blank" rel="noopener">openseamap.org</a></div>
+  <h3>Što je demo</h3>
+  <p class="note"><span class="demo">DEMO</span> Osam sidrišta ima približne lokacije, a smjer izloženosti uvale je procjena tima. Otvoreni skup sa službenim koordinatama sidrišta nismo pronašli. Sve ostalo na karti su stvarni podaci.</p>
+  <div id="luList"></div>
+ </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="data/podaci.js"></script>
+<script>window.JR_DATA||document.write('<script src="podaci.js"><\/script>')</script>
+<script>
+// ---- Jadran radar ----
+// STVARNI PODACI: data/*.geojson (vidi data/IZVORI.md). DEMO: samo sidrišta ispod.
+// DEMO sidrišta: [naziv, lat, lng, smjer otvorenosti uvale u stupnjevima] – približne koordinate i procijenjena izloženost.
+const SID=[["Palmižana (Pakleni otoci)",43.158,16.395,30],["Milna (Brač)",43.324,16.449,330],["Maslinica (Šolta)",43.394,16.210,320],["Stari Grad (Hvar)",43.184,16.595,300],["Vis (luka)",43.060,16.183,40],["Komiža (Vis)",43.044,16.091,270],["Makarska (sidrište)",43.296,17.018,225],["Telašćica (Kornati)",43.930,15.190,290]];
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hrDate=d=>d?String(d).split('-').reverse().map(Number).join('. ')+'.':'';
+const mobile=()=>matchMedia('(max-width:760px)').matches;
+
+const map=L.map('m',{preferCanvas:true,zoomControl:false}).setView([43.3,16.5],mobile()?8:9);
+L.control.zoom({position:'bottomright'}).addTo(map);
+L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
+L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',{attribution:'© OpenSeaMap'}).addTo(map);
+map.createPane('rings').style.zIndex=410;
+map.createPane('sst').style.zIndex=350;map.createPane('names').style.zIndex=360;
+L.Popup.mergeOptions({autoPanPaddingTopLeft:[12,64],autoPanPaddingBottomRight:mobile()?[12,12]:[312,12]});
+const COL={g:'#2e9e6b',y:'#e0a21b',r:'#cf4437',b:'#2b6cb0',k:'#7b8794',o:'#7a4fb5'};
+const TXT={g:'dobro',y:'oprez',r:'ne preporučuje se',k:'nema prognoze'};
+const TXS={g:'zaštićeno',y:'oprez',r:'izloženo',k:'nema prognoze'};
+// Službene ocjene kakvoće mora za kupanje (Uredba NN 73/08)
+const KAK={'izvrsno':'#1f78d1','dobro':'#2e9e6b','zadovoljavajuće':'#e0a21b','nezadovoljavajuće':'#cf4437'};
+const dot=(c,t)=>`<span><i class="dot" style="background:${c}"></i>${t}</span>`;
+const L_={sid:L.layerGroup(),inf:L.layerGroup(),svj:L.layerGroup(),luke:L.layerGroup(),pla:L.layerGroup(),ocean:L.layerGroup(),mp:L.layerGroup(),vts:L.layerGroup(),sst:L.layerGroup(),eea:L.layerGroup()};
+const LAY={
+ sid:{n:'Sidrišta <span class="demo">DEMO</span>',sub:dot(COL.g,'zaštićeno')+dot(COL.y,'oprez')+dot(COL.r,'izloženo')},
+ inf:{n:'Ovdje ne sidri',sub:'<span><i class="ln"></i>kabeli, cjevovodi, ispusti</span>'},
+ svj:{n:'Svjetla i plutače',sub:dot('#ffd23f','svjetlo')+dot('#ff8a3d','plutača')+'<br><span id="svjHint">Približi kartu za sva svjetla.</span>'},
+ luke:{n:'Kapetanije i ispostave',sub:dot(COL.b,'lučka kapetanija / ispostava')},
+ pla:{n:'Plaže – kakvoća mora',sub:Object.entries(KAK).map(([n,c])=>dot(c,n)).join('')},
+ mp:{n:'Nazivi morskih područja',sub:'<span>kanali, zaljevi i uvale (HHI)</span><br><span id="mpHint">Približi kartu za nazive.</span>'},
+ vts:{n:'VTS sektori',sub:'<span><i class="vz"></i>nadzor pomorskog prometa, VHF kanali</span>'},
+ sst:{n:'Temperatura mora (prognoza)',sub:'<span>10 °C<i class="grad"></i>28 °C</span>'},
+ ocean:{n:'Izmjerena temperatura i slanost',sub:'<span><i class="ring"></i>mjerna postaja, sezona 2024.</span>'},
+ eea:{n:'EU ocjena vode za kupanje',sub:'<span><i class="sq"></i>EEA, sezona 2025. (iste boje kao plaže)</span>'}};
+const GROUPS=[['Za nautičare',['sid','inf','svj','luke','mp','vts']],['Za kupače',['pla','sst','ocean','eea']]];
+const SHOW={N:['sid','inf','svj','luke','mp'],K:['pla','sst','ocean']};
+const META={},PLA=[],OCE=[],CB={},svjMinor=L.layerGroup(),mpBig=L.layerGroup(),mpSmall=L.layerGroup(),JR=window.JR_DATA||{};
+const inf=$('info'),tg=$('tg'),sl=$('sl'),hl=$('hl'),bN=$('bN'),bK=$('bK'),bS=$('bS');
+const say=(t,bad)=>{inf.textContent=t;inf.className=bad?'bad':''};
+GROUPS.forEach(([title,keys])=>{const h=document.createElement('h2');h.textContent=title;tg.append(h);
+ keys.forEach(k=>{const l=document.createElement('label');l.className='lay';
+  l.innerHTML=`<input type="checkbox"><span class="n">${LAY[k].n}</span><span class="c" id="c_${k}"></span><span class="sub">${LAY[k].sub}</span>`;
+  CB[k]=l.firstChild;CB[k].onchange=()=>CB[k].checked?L_[k].addTo(map):map.removeLayer(L_[k]);tg.append(l)})});
+function layers(){for(const k in CB){CB[k].checked=SHOW[mode].includes(k);CB[k].onchange()}}
+let mode='N',O=0,H=0,TIME=null,SM=[];
+const dir=d=>['S','SI','I','JI','J','JZ','Z','SZ'][Math.round(d/45)%8];
+const ang=(a,b)=>{const x=Math.abs(a-b)%360;return x>180?360-x:x};
+const at=w=>w&&w.ws?{ws:w.ws[O+H],wd:w.wd[O+H],gu:w.gu[O+H],wh:w.wh?.[O+H],t:w.t?.[O+H],ta:w.ta?.[O+H],uv:w.uv?.[O+H]}:null;
+const nowIdx=T=>{const now=new Date().toLocaleString('sv-SE',{timeZone:'Europe/Zagreb'}).slice(0,13).replace(' ','T');return Math.max(0,T.findIndex(t=>t.slice(0,13)===now))};
+const tl=h=>{const t=TIME&&TIME[O+h];if(!h||!t)return'sada';const dd=Math.round((new Date(t.slice(0,10))-new Date(TIME[O].slice(0,10)))/864e5);return `${['danas','sutra','prekosutra'][dd]||''} u ${t.slice(11,16)}`};
+const uvTxt=u=>u<3?'nizak':u<6?'umjeren':u<8?'visok':u<11?'vrlo visok':'ekstreman';
+const src=(k,extra)=>{const m=META[k];return `<small class="src">Izvor: ${m?esc(m.izvor)+' – '+esc(m.naziv)+' (preuzeto '+hrDate(m.preuzeto)+')':'–'}${extra||''}</small>`};
+const cond=w=>w&&w.ws!=null?`💨 ${dir(w.wd)} ${w.ws.toFixed(0)} čv (udari ${w.gu.toFixed(0)}) · 🌊 ${w.wh!=null?w.wh.toFixed(1)+' m':'–'} · 🌡 ${w.t!=null?w.t.toFixed(1)+' °C':'–'}`:'Prognoza nije dostupna.';
+const when=()=>H===0?'sada':hl.textContent;
+
+// Prognoza (Open-Meteo) za popis točaka [[lat,lng],...]
+async function forecast(pts){
+ const la=pts.map(p=>p[0]).join(','),lo=pts.map(p=>p[1]).join(','),tz='&forecast_days=3&timezone=Europe%2FZagreb';
+ const [f,mr]=await Promise.all([
+  fetch(`https://api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,temperature_2m,uv_index&wind_speed_unit=kn${tz}`).then(r=>r.json()),
+  fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${la}&longitude=${lo}&hourly=wave_height,sea_surface_temperature${tz}`).then(r=>r.json()).catch(()=>[])]);
+ const F=[].concat(f),M=[].concat(mr);
+ if(!TIME){TIME=F[0].hourly.time;O=nowIdx(TIME);sl.max=Math.min(47,TIME.length-O-1)}
+ return pts.map((_,i)=>{const h=F[i].hourly,m=M[i]?.hourly||{};return{ws:h.wind_speed_10m,wd:h.wind_direction_10m,gu:h.wind_gusts_10m,ta:h.temperature_2m,uv:h.uv_index,wh:m.wave_height,t:m.sea_surface_temperature}})}
+
+// Ocjena sidrišta: izloženost uvale vjetru + udari
+function rateSid(p,w){
+ if(!w||w.ws==null)return{c:'k',why:'Nema podataka o prognozi.'};
+ const ex=ang(w.wd,p[3])<=70;
+ if(ex&&(w.ws>=15||w.gu>=28))return{c:'r',why:`Uvala je izložena vjetru iz smjera ${dir(w.wd)} (${w.ws.toFixed(0)} čv). Ne preporučuje se sidrenje.`};
+ if(ex&&w.ws>=8||w.ws>=22)return{c:'y',why:`Djelomično izloženo: vjetar ${dir(w.wd)} ${w.ws.toFixed(0)} čv. Pojačajte nadzor sidra.`};
+ if(w.gu>=28)return{c:'y',why:`Uvala je u zavjetrini (vjetar ${dir(w.wd)}), ali udari dosežu ${w.gu.toFixed(0)} čv. Pojačajte nadzor sidra.`};
+ return{c:'g',why:`Uvala je zaštićena od vjetra iz smjera ${dir(w.wd)}.`}}
+// Uvjeti za kupanje: valovi (ili vjetar ako valovi nisu dostupni)
+function rateSwim(w){
+ if(!w||w.ws==null)return{c:'k',why:'Prognoza nije dostupna.'};
+ if(w.wh==null){const c=w.ws<10?'g':w.ws<18?'y':'r';return{c,why:`procjena po vjetru (${w.ws.toFixed(0)} čv)`}}
+ const c=w.wh<.4?'g':w.wh<.8?'y':'r';return{c,why:`valovi ${w.wh.toFixed(1)} m`}}
+
+const sidM=SID.map(p=>{const m=L.circleMarker([p[1],p[2]],{radius:11,color:'#fff',weight:2.5,fillColor:COL.k,fillOpacity:.95}).addTo(L_.sid);m.p=p;m.bindPopup('');m.arrow=L.marker([p[1],p[2]],{interactive:false,keyboard:false,icon:L.divIcon({className:'arr',html:'',iconSize:[0,0]})}).addTo(L_.sid);return m});
+const arrow=w=>L.divIcon({className:'arr',iconSize:[30,30],iconAnchor:[-9,30],html:`<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(${Math.round(w.wd+180)}deg)"><path d="M15 2l7 10h-4.5v15h-5V12H8z" fill="#0a2540" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg><b>${w.ws.toFixed(0)} čv</b>`});
+function drawSid(){SM=[];sidM.forEach(m=>{const w=at(m.w),s=rateSid(m.p,w);m.setStyle({fillColor:COL[s.c]});if(s.c==='g')SM.push(m);if(w&&w.ws!=null)m.arrow.setIcon(arrow(w));
+ m.setPopupContent(`<div class="pop"><h3>${esc(m.p[0])}</h3><div class="where">Sidrište · <span class="demo">DEMO</span> približna lokacija</div>
+<div class="box"><span class="tag" style="background:${COL[s.c]}">${TXS[s.c]}</span> <small>${when()}</small><br>${s.why}<br><small>${cond(w)}</small></div>
+<small class="src">Prognoza: Open-Meteo. Lokacija i izloženost uvale su demo procjena, nisu službeni podaci.</small></div>`)})}
+
+// Plaže: boja = službena ocjena kakvoće; prognoza se dohvaća kad se otvori popup
+function nearOcean(ll){let b=null,bd=150;OCE.forEach(o=>{const d=ll.distanceTo(o.getLatLng());if(d<bd){bd=d;b=o.feature.properties}});return b}
+function plaPop(m){const p=m.feature.properties,w=at(m.w),s=rateSwim(w),q=p.ocjena||'bez ocjene',q2=p.konacna||'bez ocjene';
+ if(m.oc===undefined)m.oc=nearOcean(m.getLatLng());const o=m.oc;
+ return `<div class="pop"><h3>${esc(p.naziv)}</h3><div class="where">${esc([p.mjesto,p.podrucje].filter((x,i,a)=>x&&a.indexOf(x)===i).join(', '))} · ${esc(p.zupanija)} županija</div>
+<div class="box">Kakvoća mora ${esc(p.sezona)}.: <span class="tag" style="background:${KAK[q]||COL.k}">${esc(q)}</span><br><small>Konačna ocjena ${esc(p.razdoblje)}.: <b>${esc(q2)}</b></small></div>
+<div class="box">Kupanje <small>${when()}</small>: ${m.w?`<span class="tag" style="background:${COL[s.c]}">${TXT[s.c]}</span> <small>${s.why}</small><br><small>${cond(w)}</small>${w&&w.ta!=null?`<br><small>☀️ UV indeks <b>${w.uv!=null?w.uv.toFixed(1)+' ('+uvTxt(w.uv)+')':'–'}</b> · zrak <b>${w.ta.toFixed(0)} °C</b></small>`:''}`:m.err?'prognoza nije dostupna.':'učitavam prognozu…'}</div>
+${o&&o.temp_sr!=null?`<div class="box"><small>Izmjereno u sezoni 2024.:</small> more <b>${o.temp_sr} °C</b> <small>(${o.temp_min}–${o.temp_max})</small>${o.slanost_sr!=null?`, slanost <b>${o.slanost_sr} PSU</b>`:''}</div>`:''}
+${src('pla',' · prognoza: Open-Meteo'+(o?' · mjerenja 2024.: IOR':''))}</div>`}
+function openPla(m){if(m.w||m.busy)return;m.busy=1;const ll=m.getLatLng();
+ forecast([[ll.lat.toFixed(3),ll.lng.toFixed(3)]]).then(r=>{m.w=r[0]}).catch(()=>{m.err=1}).finally(()=>{m.busy=0;m.setPopupContent(plaPop(m))})}
+const row=(a,b)=>b==null||b===''?'':`<dt>${a}</dt><dd>${esc(b)}</dd>`;
+const STYLE={
+ pla:f=>({radius:6.5,color:'#fff',weight:1.5,fillOpacity:.95,fillColor:KAK[f.properties.ocjena]||COL.k}),
+ ocean:()=>({radius:10,color:COL.o,weight:2.5,opacity:.85,fill:false,pane:'rings',renderer:ringR}),
+ luke:f=>({radius:f.properties.vrsta==='Lučka kapetanija'?8:5.5,color:'#fff',weight:2,fillOpacity:1,fillColor:COL.b}),
+ svj:f=>{const p=f.properties,d=parseFloat(p.domet_nm)||0;return{radius:p.plutaca?4:d>=10?7.5:d>=5?5.5:4,color:'#5b4300',weight:1,fillOpacity:.95,fillColor:p.plutaca?'#ff8a3d':'#ffd23f'}}};
+const ringR=L.svg({pane:'rings'});
+STYLE.eea=f=>({radius:6.5,color:'#1b3a4b',weight:2,fillOpacity:.95,fillColor:KAK[f.properties.ocjena]||COL.k});
+const POP={
+ ocean:p=>`<h3>${esc(p.naziv)}</h3><div class="where">Oceanografska mjerna postaja</div><div class="box">Sezona kupanja 2024. <small>(${esc(p.mjerenja)} mjerenja, ${hrDate(p.od)} – ${hrDate(p.do)})</small>${p.temp_sr!=null?`<br>Temperatura mora: <b>${p.temp_sr} °C</b> <small>prosjek (${p.temp_min}–${p.temp_max} °C)</small>`:''}${p.slanost_sr!=null?`<br>Slanost: <b>${p.slanost_sr} PSU</b> <small>prosjek</small>`:''}</div>${src('ocean')}`,
+ luke:p=>`<h3>${esc(p.vrsta||'')} ${esc(p.naziv)}</h3><div class="where">Lučka kapetanija ${esc(p.kapetanija||'')}</div><dl>${row('Adresa',p.adresa)}${row('Telefon',p.telefon)}${row('E-pošta',p.email)}</dl>${src('luke')}`,
+ svj:p=>`<h3>${esc(p.naziv||'Objekt sigurnosti plovidbe')}</h3><div class="where">${p.plutaca?'Plutača':'Svjetlo / oznaka'} · kapetanija ${esc(p.kapetanija||'–')}</div><dl>${row('Opis',p.opis)}${row('Plutača',p.plutaca)}${row('Svjetlo',p.svjetlo)}${row('Domet',p.domet_nm&&p.domet_nm+' M')}${row('Visina',p.visina_m!=null?p.visina_m+' m nad morem':null)}${row('Popis svjetala',p.popis_svjetala&&'br. '+p.popis_svjetala)}</dl>${src('svj')}`,
+ inf:p=>`<h3>${esc(p.vrsta)}</h3><div class="where">${esc(p.naziv||'')}</div><div class="box"><span class="tag" style="background:${COL.r}">Ovdje ne sidri</span><br><small>Podmorski vod upisan u Registar odobalne infrastrukture${p.oznaka?' ('+esc(p.oznaka)+')':''}.</small></div>${src('inf')}`};
+POP.eea=p=>`<h3>${esc(p.naziv)}</h3><div class="where">Lokacija za kupanje · EU oznaka ${esc(p.oznaka||'–')}</div><div class="box">EU ocjena ${esc(p.sezona)}.: <span class="tag" style="background:${KAK[p.ocjena]||COL.k}">${esc(p.ocjena)}</span>${p.ranije?`<br><small>Ranije: ${esc(p.ranije)}</small>`:''}</div>${src('eea')}`;
+POP.vts=p=>`<h3>${esc(p.naziv)}</h3><div class="where">VTS · ${esc(p.vrsta||'')}</div><dl>${row('Pozivni znak',p.pozivni)}${row('VHF kanal',p.vhf)}${row('Pomoćni kanal',p.vhf_pom)}</dl>${src('vts')}`;
+const major=f=>!f.properties.plutaca&&(parseFloat(f.properties.domet_nm)||0)>=8;
+function addGJ(k,g){META[k]=g.metadata;$('c_'+k).textContent=g.features.length;
+ const mk=filter=>L.geoJSON(g,{filter,style:k==='inf'?()=>({color:COL.r,weight:3,opacity:.9,dashArray:'6 5'}):k==='vts'?()=>({color:'#0e7c86',weight:2,dashArray:'7 6',fillColor:'#0e7c86',fillOpacity:.05}):undefined,
+  pointToLayer:(f,ll)=>L.circleMarker(ll,STYLE[k](f)),
+  onEachFeature:(f,l)=>{if(k==='pla'){PLA.push(l);l.bindPopup(()=>plaPop(l));l.on('popupopen',()=>openPla(l))}else{if(k==='ocean')OCE.push(l);l.bindPopup(()=>`<div class="pop">${POP[k](f.properties)}</div>`)}}});
+ if(k==='inf')L.geoJSON(g,{style:()=>({color:COL.r,weight:14,opacity:.14}),interactive:false,filter:f=>f.geometry.type!=='Point'}).addTo(L_[k]);
+ if(k==='svj'){mk(major).addTo(L_.svj);mk(f=>!major(f)).addTo(svjMinor);zoomSvj()}else mk().addTo(L_[k])}
+function zoomSvj(){const z=map.getZoom()>=11;z?L_.svj.addLayer(svjMinor):L_.svj.removeLayer(svjMinor);const h=$('svjHint');if(h)h.style.display=z?'none':''}
+// Nazivi morskih područja (HHI): natpis u težištu područja; regije od zooma 10, podregije od zooma 12
+function addMP(g){META.mp=g.metadata;$('c_mp').textContent=g.features.length;
+ g.features.forEach(f=>{const p=f.properties,c=f.geometry.coordinates,s=p.podjela!=='regija';
+  L.marker([c[1],c[0]],{interactive:false,keyboard:false,pane:'names',icon:L.divIcon({className:'',iconSize:[0,0],html:`<div class="mpl${s?' s':''}">${esc(p.naziv)}</div>`})}).addTo(s?mpSmall:mpBig)});zoomMP()}
+function zoomMP(){const z=map.getZoom();z>=10?L_.mp.addLayer(mpBig):L_.mp.removeLayer(mpBig);z>=12?L_.mp.addLayer(mpSmall):L_.mp.removeLayer(mpSmall);const h=$('mpHint');if(h)h.style.display=z>=10?'none':''}
+map.on('zoomend',()=>{zoomSvj();zoomMP()});
+// Podaci: prvo iz data/podaci.js (radi i kad se stranica otvori dvoklikom), inače iz data/*.geojson
+const FILES={ocean:'ocean',pla:'plaze',inf:'infrastruktura',svj:'svjetionici',luke:'luke',eea:'eea_kupanje',mp:'morska_podrucja',vts:'vts'};
+const getData=(k,file)=>JR[k]?Promise.resolve(JR[k]):fetch('data/'+file).then(r=>{if(!r.ok)throw 0;return r.json()});
+const drop=k=>{if(CB[k]){map.removeLayer(L_[k]);CB[k].closest('label').remove();delete CB[k]}};
+const loaded=Promise.all(Object.entries(FILES).map(([k,n])=>getData(k,n+'.geojson').then(g=>{k==='mp'?addMP(g):addGJ(k,g);return 1}).catch(e=>{console.warn('Sloj nije učitan:',k,e);drop(k);return 0})));
+
+// Karta temperature mora: mreža točaka na moru, vrijednosti uživo s Open-Meteo Marine API-ja, prati klizač
+let SST=[];
+const sstCol=t=>`hsl(${Math.round(240-240*Math.max(0,Math.min(1,(t-10)/18)))} 75% 45%)`;
+function drawSst(){SST.forEach(s=>{const t=s.t[(TIME?O:s.o)+H];s.m.setIcon(L.divIcon({className:'sst',iconSize:[46,23],html:t==null?'':`<span style="background:${sstCol(t)}">${t.toFixed(1)}°</span>`}))})}
+getData('mreza','mreza_more.json').then(j=>{META.sst=j.metadata;const pts=j.tocke;$('c_sst').textContent=pts.length;
+ return fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${pts.map(p=>p[0]).join(',')}&longitude=${pts.map(p=>p[1]).join(',')}&hourly=sea_surface_temperature&forecast_days=3&timezone=Europe%2FZagreb`).then(r=>r.json()).then(a=>{
+  SST=[].concat(a).map((x,i)=>({t:x.hourly.sea_surface_temperature,o:nowIdx(x.hourly.time),m:L.marker(pts[i],{interactive:false,keyboard:false,pane:'sst',icon:L.divIcon({className:'sst',html:''})}).addTo(L_.sst)}));drawSst()})}).catch(e=>{console.warn('Temperatura mora nije učitana',e);drop('sst')});
+
+// Upozorenje: bura (SI) ili jugo (JI) s vjetrom ili udarima iznad 25 čv na nekom sidrištu u idućih 48 h
+function warnings(){const ev={};sidM.forEach(m=>{const w=m.w;if(!w||!w.ws)return;
+  for(let h=O;h<Math.min(O+48,w.ws.length);h++){const d=w.wd[h],s=Math.max(w.ws[h]||0,w.gu[h]||0),kind=d>=22.5&&d<67.5?'Bura (SI)':d>=112.5&&d<157.5?'Jugo (JI)':null;
+   if(kind&&s>25){const e=ev[kind]||(ev[kind]={h:1e9,max:0,n:new Set()});if(h<e.h)e.h=h;if(s>e.max)e.max=s;e.n.add(m.p[0])}}});
+ const el=$('warn'),ks=Object.keys(ev);el.hidden=!ks.length;
+ el.innerHTML=ks.map(k=>{const e=ev[k],n=e.n.size;return `<span>⚠ ${k}: udari do ${e.max.toFixed(0)} čv, ${e.h===O?'već sada':'od <u data-h="'+(e.h-O)+'">'+tl(e.h-O)+'</u>'} · ${n} ${n===1?'sidrište':'sidrišta'}</span>`}).join('');map.invalidateSize()}
+$('warn').onclick=e=>{const h=e.target.dataset&&e.target.dataset.h;if(h!=null){sl.value=h;sl.oninput()}};
+
+function refresh(){drawSid();drawSst();PLA.forEach(m=>{if(m.isPopupOpen())m.setPopupContent(plaPop(m))})}
+sl.oninput=()=>{H=+sl.value;hl.textContent=H===0||!TIME?'sada':`${tl(H)} (+${H} h)`;refresh()};
+function setMode(m){mode=m;bN.className=m==='N'?'on':'';bK.className=m==='K'?'on':'';bN.setAttribute('aria-pressed',m==='N');bK.setAttribute('aria-pressed',m==='K');
+ bS.style.display=m==='N'?'':'none';map.closePopup();layers();refresh()}
+bN.onclick=()=>setMode('N');bK.onclick=()=>setMode('K');
+
+// Najbliže sigurno sidrište: od korisnikove lokacije ako je dostupna i u području karte, inače od sredine karte
+let me=null;
+const locate=()=>new Promise(res=>{if(!navigator.geolocation)return res(null);
+ navigator.geolocation.getCurrentPosition(p=>res(L.latLng(p.coords.latitude,p.coords.longitude)),()=>res(null),{timeout:5000,maximumAge:6e5})});
+bS.onclick=async()=>{if(!SM.length){say('Za taj sat nijedno demo sidrište nije zaštićeno.',1);alert('Za odabrani sat nijedno demo sidrište nije ocijenjeno kao zaštićeno. Pomakni klizač na drugi sat.');return}
+ let from=await locate();const inArea=from&&from.lat>42&&from.lat<44.6&&from.lng>14.5&&from.lng<18.6;
+ if(inArea){if(me)me.remove();me=L.circleMarker(from,{radius:7,color:'#fff',weight:3,fillColor:'#0a84ff',fillOpacity:1}).bindTooltip('Vi ste ovdje').addTo(map)}else from=map.getCenter();
+ const m=SM.slice().sort((a,b)=>from.distanceTo(a.getLatLng())-from.distanceTo(b.getLatLng()))[0];
+ if(!map.hasLayer(L_.sid)){CB.sid.checked=true;CB.sid.onchange()}
+ say(`Najbliže zaštićeno sidrište ${inArea?'vašoj lokaciji':'sredini karte'}: ${m.p[0]} (${(from.distanceTo(m.getLatLng())/1852).toFixed(0)} M)`);
+ if(mobile())togglePanel(false);map.flyTo(m.getLatLng(),11,{duration:1.2});map.once('moveend',()=>m.openPopup())};
+
+// Panel slojeva (na mobitelu se otvara gumbom)
+const panel=$('panel');
+function togglePanel(on){panel.hidden=!on;$('bPanel').style.visibility=on?'hidden':''}
+$('bPanel').onclick=()=>togglePanel(true);$('bPanelX').onclick=()=>togglePanel(false);
+togglePanel(!mobile());map.on('click',()=>{if(mobile())togglePanel(false)});
+
+// Uvodni okvir i izvori
+const intro=$('intro'),srcDlg=$('srcDlg');
+$('bGo').onclick=()=>{intro.close();try{localStorage.setItem('jr_intro','1')}catch(e){}};
+$('bAbout').onclick=()=>intro.showModal();
+let seen=false;try{seen=localStorage.getItem('jr_intro')==='1'}catch(e){}
+if(!seen||location.hash==='#uvod')intro.showModal();
+$('bSrc').onclick=()=>srcDlg.showModal();$('bSrcX').onclick=()=>srcDlg.close();
+[intro,srcDlg].forEach(d=>d.addEventListener('click',e=>{if(e.target===d)d.close()}));
+const SRCNAME={pla:'Plaže – kakvoća mora',inf:'Ovdje ne sidri',ocean:'Izmjerena temperatura i slanost',svj:'Svjetla i plutače',luke:'Kapetanije i ispostave',eea:'EU ocjena vode za kupanje',mp:'Nazivi morskih područja',vts:'VTS sektori'};
+loaded.then(r=>{const n=r.reduce((a,b)=>a+b,0);if(n<r.length)say(`Učitano ${n} od ${r.length} slojeva podataka.`,1);
+ $('srcList').innerHTML=['pla','eea','ocean','inf','svj','luke','mp','vts'].filter(k=>META[k]).map(k=>{const m=META[k];
+  return `<div class="ds"><b>${esc(m.naziv)}</b><small>Sloj „${SRCNAME[k]}” · ${esc(m.broj_objekata)} objekata · preuzeto ${hrDate(m.preuzeto)}</small><small>${esc(m.izvor)} · Licenca: ${esc(m.licenca)}</small><small>${esc(m.napomena||'')}</small><a href="${esc(m.portal||m.url)}" target="_blank" rel="noopener">${/data\.gov\.hr/.test(m.portal||m.url)?'Otvori skup na data.gov.hr':'Otvori izvor'}</a></div>`}).join('')});
+getData('uprave','lucke_uprave.json').then(j=>{const m=j.metadata;
+ $('luList').innerHTML=`<div class="ds"><b>${esc(m.naziv)}</b><small>Popis (skup nema koordinate, pa nije na karti) · ${j.uprave.length} zapisa · preuzeto ${hrDate(m.preuzeto)}</small><small>${esc(m.izvor)} · Licenca: ${esc(m.licenca)}</small><a href="${esc(m.url)}" target="_blank" rel="noopener">Otvori skup na data.gov.hr</a>
+<details><summary>Prikaži popis lučkih uprava</summary><ul>${j.uprave.map(u=>`<li><b>${esc(u.naziv)}</b>, ${esc(u.adresa)}${/^https?:\/\//.test(u.web)?` · <a href="${esc(u.web)}" target="_blank" rel="noopener">web</a>`:''}</li>`).join('')}</ul></details></div>`}).catch(()=>{});
+
+setMode('N');
+forecast(SID.map(p=>[p[1],p[2]])).then(r=>{sidM.forEach((m,i)=>m.w=r[i]);say('Prognoza uživo: Open-Meteo');warnings()}).catch(()=>say('Prognoza nije dostupna (provjerite internet).',1)).finally(refresh);
+</script></body></html>
