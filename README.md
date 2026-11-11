@@ -6,8 +6,8 @@ Projekt za Datathon Portala otvorenih podataka ([data.gov.hr](https://data.gov.h
 
 - Aplikacija: <https://tinkypfst.github.io/jadran-radar/>
 - Kod: <https://github.com/TinkyPFST/jadran-radar>
-- Video: *(upisati link)*
-- Tim: *(upisati imena)*
+- Video: .
+- Tim: Kapetani (Tin Peric i Niki Krsticevic)
 
 ## Problem
 
